@@ -1,0 +1,12 @@
+{
+  "name": "anime-pedia",
+  "private": true,
+  "workspaces": ["apps/web", "packages/shared-schemas"],
+  "scripts": {
+    "dev:web": "bun run --cwd apps/web dev",
+    "build:web": "bun run --cwd apps/web build",
+    "lint:web": "bun run --cwd apps/web lint",
+    "typecheck:web": "bun run --cwd apps/web typecheck",
+    "typecheck:schemas": "bun run --cwd packages/shared-schemas typecheck"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "name": "@shared-schemas",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./typescript/index.ts",
+  "types": "./typescript/index.ts",
+  "exports": {
+    ".": "./typescript/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0"
+  }
+}

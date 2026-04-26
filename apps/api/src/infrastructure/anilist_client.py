@@ -1,0 +1,54 @@
+import httpx
+
+from ..domain.models import AnimeEntry
+
+_SEASONAL_QUERY = """
+query ($season: MediaSeason, $year: Int, $page: Int) {
+  Page(page: $page, perPage: 50) {
+    media(season: $season, seasonYear: $year, type: ANIME, sort: POPULARITY_DESC) {
+      id
+      title { english romaji }
+      genres
+      description(asHtml: false)
+      averageScore
+      episodes
+      status
+    }
+  }
+}
+"""
+
+
+class AniListClient:
+    def __init__(self, base_url: str) -> None:
+        self._base_url = base_url
+
+    async def get_seasonal(self, season: str, year: int) -> list[AnimeEntry]:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                self._base_url,
+                json={
+                    "query": _SEASONAL_QUERY,
+                    "variables": {"season": season, "year": year, "page": 1},
+                },
+            )
+            response.raise_for_status()
+            media_list: list[dict[str, object]] = response.json()["data"]["Page"]["media"]
+            return [_parse_entry(m) for m in media_list]
+
+
+def _parse_entry(raw: dict[str, object]) -> AnimeEntry:
+    title_obj = raw.get("title") or {}
+    assert isinstance(title_obj, dict)
+    title = str(title_obj.get("english") or title_obj.get("romaji") or "Unknown")
+    score_raw = raw.get("averageScore")
+    episodes_raw = raw.get("episodes")
+    return AnimeEntry(
+        id=int(str(raw["id"])),
+        title=title,
+        genres=[str(g) for g in (raw.get("genres") or [])],
+        synopsis=str(raw.get("description") or ""),
+        score=float(str(score_raw)) / 10.0 if score_raw else None,
+        episodes=int(str(episodes_raw)) if episodes_raw else None,
+        status=str(raw.get("status") or ""),
+    )
