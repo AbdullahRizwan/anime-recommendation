@@ -4,7 +4,12 @@ from typing import Any
 
 from openai import AsyncOpenAI
 
-from ..domain.models import AnimeEntry, RankedAnime, RecommendationRequest, RecommendationResponse
+from ..domain.models import (
+    AnimeEntry,
+    RankedAnime,
+    RecommendationRequest,
+    RecommendationResponse,
+)
 from ..infrastructure.anilist_client import AniListClient
 from .tools import get_tools
 
@@ -21,9 +26,10 @@ class RecommendationAgent:
 
     async def run(self, request: RecommendationRequest) -> RecommendationResponse:
         season, year = _resolve_season(request)
+        user_msg = f"Recommend the top {request.top_n} anime for {season} {year}."
         messages: list[dict[str, Any]] = [
             {"role": "system", "content": _system_prompt(request)},
-            {"role": "user", "content": f"Recommend the top {request.top_n} anime for {season} {year}."},
+            {"role": "user", "content": user_msg},
         ]
         final_content = ""
 
@@ -47,15 +53,22 @@ class RecommendationAgent:
                     {
                         "id": tc.id,
                         "type": "function",
-                        "function": {"name": tc.function.name, "arguments": tc.function.arguments},
+                        "function": {
+                            "name": tc.function.name,
+                            "arguments": tc.function.arguments,
+                        },
                     }
                     for tc in choice.message.tool_calls
                 ],
             })
 
             for tc in choice.message.tool_calls:
-                result = await self._dispatch(tc.function.name, json.loads(tc.function.arguments))
-                messages.append({"role": "tool", "tool_call_id": tc.id, "content": result})
+                result = await self._dispatch(
+                    tc.function.name, json.loads(tc.function.arguments)
+                )
+                messages.append(
+                    {"role": "tool", "tool_call_id": tc.id, "content": result}
+                )
 
         return _parse_response(final_content, season, year)
 
@@ -141,7 +154,6 @@ def _system_prompt(request: RecommendationRequest) -> str:
 
 def _parse_response(content: str, season: str, year: int) -> RecommendationResponse:
     text = content.strip()
-    # Strip markdown fences if the model wraps its output
     if text.startswith("```"):
         text = text.split("\n", 1)[-1]
         text = text.rsplit("```", 1)[0]

@@ -17,6 +17,8 @@ class RecommendService:
 
 def get_recommend_service() -> RecommendService:
     return RecommendService(
-        client=AsyncOpenAI(api_key=settings.groq_api_key, base_url=settings.groq_base_url),
+        client=AsyncOpenAI(
+            api_key=settings.groq_api_key, base_url=settings.groq_base_url
+        ),
         anilist=AniListClient(base_url=settings.anilist_api_url),
     )

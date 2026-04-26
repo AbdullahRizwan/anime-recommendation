@@ -7,7 +7,7 @@ def get_tools() -> list[dict[str, Any]]:
             "type": "function",
             "function": {
                 "name": "get_seasonal_anime",
-                "description": "Fetch the anime catalog for a given season from AniList.",
+                "description": "Fetch seasonal anime catalog from AniList.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -29,10 +29,21 @@ def get_tools() -> list[dict[str, Any]]:
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "anime_ids": {"type": "array", "items": {"type": "integer"}},
-                        "include_genres": {"type": "array", "items": {"type": "string"}},
-                        "exclude_genres": {"type": "array", "items": {"type": "string"}},
-                        "max_episodes": {"anyOf": [{"type": "integer"}, {"type": "null"}]},
+                        "anime_ids": {
+                            "type": "array",
+                            "items": {"type": "integer"},
+                        },
+                        "include_genres": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                        },
+                        "exclude_genres": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                        },
+                        "max_episodes": {
+                            "anyOf": [{"type": "integer"}, {"type": "null"}],
+                        },
                     },
                     "required": ["anime_ids"],
                 },
@@ -42,11 +53,14 @@ def get_tools() -> list[dict[str, Any]]:
             "type": "function",
             "function": {
                 "name": "rank_anime",
-                "description": "Produce the final ranked recommendation list with per-show reasoning.",
+                "description": "Get details for the model's top picks to rank.",
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "anime_ids": {"type": "array", "items": {"type": "integer"}},
+                        "anime_ids": {
+                            "type": "array",
+                            "items": {"type": "integer"},
+                        },
                         "top_n": {"type": "integer"},
                     },
                     "required": ["anime_ids", "top_n"],

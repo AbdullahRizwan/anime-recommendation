@@ -33,7 +33,8 @@ class AniListClient:
                 },
             )
             response.raise_for_status()
-            media_list: list[dict[str, object]] = response.json()["data"]["Page"]["media"]
+            data = response.json()
+            media_list: list[dict[str, object]] = data["data"]["Page"]["media"]
             return [_parse_entry(m) for m in media_list]
 
 
