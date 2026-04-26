@@ -10,7 +10,7 @@ from ..domain.models import (
     RecommendationRequest,
     RecommendationResponse,
 )
-from ..infrastructure.anilist_client import AniListClient
+from ..infrastructure.catalog_service import CatalogService
 from .tools import get_tools
 
 _MODEL = "llama-3.3-70b-versatile"
@@ -19,9 +19,9 @@ _SYNOPSIS_LIMIT = 300
 
 
 class RecommendationAgent:
-    def __init__(self, llm: AsyncOpenAI, anilist: AniListClient) -> None:
+    def __init__(self, llm: AsyncOpenAI, catalog: CatalogService) -> None:
         self._llm = llm
-        self._anilist = anilist
+        self._catalog = catalog
         self._store: dict[int, AnimeEntry] = {}
 
     async def run(self, request: RecommendationRequest) -> RecommendationResponse:
@@ -76,7 +76,7 @@ class RecommendationAgent:
         if name == "get_seasonal_anime":
             season = str(inputs["season"])
             year = int(str(inputs["year"]))
-            anime_list = await self._anilist.get_seasonal(season, year)
+            anime_list = await self._catalog.get_seasonal(season, year)
             self._store = {a.id: a for a in anime_list}
             return json.dumps([_to_dict(a) for a in anime_list])
 
@@ -177,7 +177,7 @@ def _parse_response(content: str, season: str, year: int) -> RecommendationRespo
 
 async def run_recommendation_agent(
     client: AsyncOpenAI,
-    anilist: AniListClient,
+    catalog: CatalogService,
     request: RecommendationRequest,
 ) -> RecommendationResponse:
-    return await RecommendationAgent(client, anilist).run(request)
+    return await RecommendationAgent(client, catalog).run(request)
