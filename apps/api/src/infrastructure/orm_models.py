@@ -4,7 +4,7 @@ from sqlalchemy import DateTime, Float, Integer, String, func
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column
 
-from .database import Base
+from src.infrastructure.database import Base
 
 
 class SeasonalAnimeORM(Base):

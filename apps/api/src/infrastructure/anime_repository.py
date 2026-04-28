@@ -1,8 +1,8 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..domain.models import AnimeEntry
-from .orm_models import SeasonalAnimeORM
+from src.domain.models import AnimeEntry
+from src.infrastructure.orm_models import SeasonalAnimeORM
 
 
 class AnimeRepository:

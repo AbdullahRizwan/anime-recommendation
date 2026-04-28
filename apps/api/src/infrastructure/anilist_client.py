@@ -1,7 +1,7 @@
 import httpx
 
-from ..domain.exceptions import AniListError
-from ..domain.models import AnimeEntry
+from src.domain.exceptions import AniListError
+from src.domain.models import AnimeEntry
 
 _SEASONAL_QUERY = """
 query ($season: MediaSeason, $year: Int, $page: Int) {

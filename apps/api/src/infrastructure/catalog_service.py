@@ -1,6 +1,6 @@
-from ..domain.models import AnimeEntry
-from .anilist_client import AniListClient
-from .anime_repository import AnimeRepository
+from src.domain.models import AnimeEntry
+from src.infrastructure.anilist_client import AniListClient
+from src.infrastructure.anime_repository import AnimeRepository
 
 
 class CatalogService:

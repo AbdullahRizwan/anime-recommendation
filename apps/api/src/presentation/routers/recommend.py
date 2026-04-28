@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 
-from ...application.recommend_service import RecommendService, get_recommend_service
-from ...domain.models import RecommendationRequest, RecommendationResponse
+from src.application.recommend_service import RecommendService, get_recommend_service
+from src.domain.models import RecommendationRequest, RecommendationResponse
 
 router = APIRouter(prefix="/recommend", tags=["recommend"])
 

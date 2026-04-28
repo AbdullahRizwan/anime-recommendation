@@ -2,9 +2,9 @@ from pydantic_ai import Agent, RunContext
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
 
-from ..config import settings
-from ..domain.models import RecommendationResponse
-from .tools import Deps, filter_anime, get_seasonal_anime, rank_anime, search_all_anime
+from src.config import settings
+from src.domain.models import RecommendationResponse
+from src.agent.tools import Deps, filter_anime, get_seasonal_anime, rank_anime, search_all_anime
 
 agent: Agent[Deps, RecommendationResponse] = Agent(
     model=OpenAIChatModel(

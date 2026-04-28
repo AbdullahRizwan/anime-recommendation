@@ -3,8 +3,8 @@ from dataclasses import dataclass, field
 
 from pydantic_ai import RunContext
 
-from ..domain.models import AnimeEntry, RecommendationRequest
-from ..infrastructure.catalog_service import CatalogService
+from src.domain.models import AnimeEntry, RecommendationRequest
+from src.infrastructure.catalog_service import CatalogService
 
 _SYNOPSIS_LIMIT = 300
 

@@ -1,13 +1,13 @@
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..agent.runner import run_recommendation_agent
-from ..config import settings
-from ..domain.models import RecommendationRequest, RecommendationResponse
-from ..infrastructure.anilist_client import AniListClient
-from ..infrastructure.anime_repository import AnimeRepository
-from ..infrastructure.catalog_service import CatalogService
-from ..infrastructure.database import get_db_session
+from src.agent.runner import run_recommendation_agent
+from src.config import settings
+from src.domain.models import RecommendationRequest, RecommendationResponse
+from src.infrastructure.anilist_client import AniListClient
+from src.infrastructure.anime_repository import AnimeRepository
+from src.infrastructure.catalog_service import CatalogService
+from src.infrastructure.database import get_db_session
 
 
 class RecommendService:

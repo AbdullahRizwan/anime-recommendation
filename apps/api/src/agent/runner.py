@@ -1,10 +1,10 @@
 from datetime import date
 
-from ..domain.exceptions import AgentError
-from ..domain.models import RecommendationRequest, RecommendationResponse
-from ..infrastructure.catalog_service import CatalogService
-from .agent import agent
-from .tools import Deps
+from src.domain.exceptions import AgentError
+from src.domain.models import RecommendationRequest, RecommendationResponse
+from src.infrastructure.catalog_service import CatalogService
+from src.agent.agent import agent
+from src.agent.tools import Deps
 
 
 def _resolve_season(request: RecommendationRequest) -> tuple[str, int]:
