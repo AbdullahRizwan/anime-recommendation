@@ -17,3 +17,10 @@ class CatalogService:
         fresh = await self._anilist.get_seasonal(season, year)
         await self._repo.store_seasonal(season, year, fresh)
         return fresh
+
+    async def search_all(
+        self,
+        genres: list[str] | None = None,
+        per_page: int = 50,
+    ) -> list[AnimeEntry]:
+        return await self._anilist.search_all(genres=genres, per_page=per_page)

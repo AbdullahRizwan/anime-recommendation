@@ -12,9 +12,9 @@ class Settings(BaseSettings):
     )
 
     database_url: str
-    groq_api_key: str
-    groq_base_url: str = "https://api.groq.com/openai/v1"
+    openai_api_key: str
     anilist_api_url: str = "https://graphql.anilist.co"
+    logfire_token: str | None = None
 
 
 settings = Settings()
