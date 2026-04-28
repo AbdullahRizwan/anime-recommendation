@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse
 
 from src.config import settings
 from src.domain.exceptions import AgentError, AniListError
-from src.presentation.routers import recommend
+from src.routers import recommend
 
 logfire.configure(
     token=settings.logfire_token or None,
