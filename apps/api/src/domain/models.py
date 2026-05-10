@@ -5,6 +5,7 @@ class AnimeEntry(BaseModel):
     id: int
     title: str
     genres: list[str]
+    tags: list[str] = []
     synopsis: str
     score: float | None
     episodes: int | None

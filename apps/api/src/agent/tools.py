@@ -148,16 +148,16 @@ async def filter_anime(
         a = ctx.deps.store.get(aid)
         if not a:
             continue
-        genres = {g.lower() for g in a.genres}
-        if exclude_set and exclude_set & genres:
+        categories = {g.lower() for g in a.genres} | {t.lower() for t in a.tags}
+        if exclude_set and exclude_set & categories:
             continue
         if max_episodes and a.episodes and a.episodes > max_episodes:
             continue
         synopsis_lower = a.synopsis.lower()
         if include:
-            tag_match = bool(include & genres)
+            category_match = bool(include & categories)
             synopsis_match = any(k in synopsis_lower for k in derived_kw)
-            if not tag_match and not synopsis_match:
+            if not category_match and not synopsis_match:
                 continue
         if explicit_kw and not any(k in synopsis_lower for k in explicit_kw):
             continue
@@ -180,6 +180,7 @@ def _to_dict(a: AnimeEntry) -> dict[str, object]:
         "id": a.id,
         "title": a.title,
         "genres": a.genres,
+        "tags": a.tags,
         "synopsis": a.synopsis[:_SYNOPSIS_LIMIT],
         "score": a.score,
         "episodes": a.episodes,
