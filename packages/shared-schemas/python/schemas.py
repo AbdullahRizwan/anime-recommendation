@@ -13,6 +13,7 @@ class RankedAnime(BaseModel):
     rank: int
     score: float
     reasoning: str
+    cover_image: str | None = None
 
 
 class RecommendationRequest(BaseModel):

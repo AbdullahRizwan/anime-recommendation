@@ -14,6 +14,7 @@ query ($season: MediaSeason, $year: Int, $page: Int) {
       averageScore
       episodes
       status
+      coverImage { large }
     }
   }
 }
@@ -30,6 +31,7 @@ query ($genres: [String], $page: Int, $perPage: Int) {
       averageScore
       episodes
       status
+      coverImage { large }
     }
   }
 }
@@ -87,6 +89,9 @@ def _parse_entry(raw: dict[str, object]) -> AnimeEntry:
     title = str(title_obj.get("english") or title_obj.get("romaji") or "Unknown")
     score_raw = raw.get("averageScore")
     episodes_raw = raw.get("episodes")
+    cover_obj = raw.get("coverImage") or {}
+    assert isinstance(cover_obj, dict)
+    cover_image = str(cover_obj["large"]) if cover_obj.get("large") else None
     return AnimeEntry(
         id=int(str(raw["id"])),
         title=title,
@@ -95,4 +100,5 @@ def _parse_entry(raw: dict[str, object]) -> AnimeEntry:
         score=float(str(score_raw)) / 10.0 if score_raw else None,
         episodes=int(str(episodes_raw)) if episodes_raw else None,
         status=str(raw.get("status") or ""),
+        cover_image=cover_image,
     )

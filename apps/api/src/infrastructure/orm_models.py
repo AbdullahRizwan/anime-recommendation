@@ -19,6 +19,7 @@ class SeasonalAnimeORM(Base):
     score: Mapped[float | None] = mapped_column(Float, nullable=True)
     episodes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     status: Mapped[str] = mapped_column(String(50))
+    cover_image: Mapped[str | None] = mapped_column(String, nullable=True)
     fetched_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False
     )

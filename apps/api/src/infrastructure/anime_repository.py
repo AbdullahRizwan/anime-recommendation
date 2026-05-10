@@ -37,6 +37,7 @@ class AnimeRepository:
                 score=a.score,
                 episodes=a.episodes,
                 status=a.status,
+                cover_image=a.cover_image,
             )
             await self._session.merge(row)
         await self._session.commit()
@@ -51,4 +52,5 @@ def _to_domain(row: SeasonalAnimeORM) -> AnimeEntry:
         score=row.score,
         episodes=row.episodes,
         status=row.status,
+        cover_image=row.cover_image,
     )

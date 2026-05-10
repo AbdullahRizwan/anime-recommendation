@@ -12,6 +12,7 @@ export const RankedAnimeSchema = z.object({
   rank: z.number().int().positive(),
   score: z.number(),
   reasoning: z.string(),
+  cover_image: z.string().nullable().optional(),
 });
 
 export const RecommendationRequestSchema = z.object({

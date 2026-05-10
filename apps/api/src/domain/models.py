@@ -9,6 +9,7 @@ class AnimeEntry(BaseModel):
     score: float | None
     episodes: int | None
     status: str
+    cover_image: str | None = None
 
 
 class UserPreferences(BaseModel):
@@ -24,6 +25,7 @@ class RankedAnime(BaseModel):
     rank: int
     score: float
     reasoning: str
+    cover_image: str | None = None
 
 
 class RecommendationRequest(BaseModel):
