@@ -16,8 +16,8 @@ class AnimeEntry(BaseModel):
 class UserPreferences(BaseModel):
     liked_genres: list[str] = Field(default_factory=list)
     disliked_genres: list[str] = Field(default_factory=list)
-    preferred_episode_count: int | None = None
     notes: str = ""
+    allow_explicit: bool = False
 
 
 class RankedAnime(BaseModel):

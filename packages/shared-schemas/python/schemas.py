@@ -5,6 +5,7 @@ class UserPreferences(BaseModel):
     liked_genres: list[str] = Field(default_factory=list)
     disliked_genres: list[str] = Field(default_factory=list)
     notes: str = ""
+    allow_explicit: bool = False
 
 
 class RankedAnime(BaseModel):

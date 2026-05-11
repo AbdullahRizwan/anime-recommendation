@@ -4,6 +4,7 @@ export const UserPreferencesSchema = z.object({
   liked_genres: z.array(z.string()).default([]),
   disliked_genres: z.array(z.string()).default([]),
   notes: z.string().default(""),
+  allow_explicit: z.boolean().default(false),
 });
 
 export const RankedAnimeSchema = z.object({

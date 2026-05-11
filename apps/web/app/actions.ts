@@ -27,6 +27,7 @@ export async function getRecommendations(
       liked_genres: parseGenres(formData.get("liked_genres")),
       disliked_genres: parseGenres(formData.get("disliked_genres")),
       notes: String(formData.get("notes") ?? ""),
+      allow_explicit: formData.get("allow_explicit") === "on",
     },
     top_n: Math.min(
       20,

@@ -62,6 +62,18 @@ export function PreferencesForm() {
           />
         </div>
 
+        <div className="flex items-center gap-2">
+          <input
+            id="allow_explicit"
+            name="allow_explicit"
+            type="checkbox"
+            className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+          />
+          <label htmlFor="allow_explicit" className="text-sm text-gray-700">
+            Include explicit content (Ecchi, Hentai)
+          </label>
+        </div>
+
         <button
           type="submit"
           disabled={isPending}

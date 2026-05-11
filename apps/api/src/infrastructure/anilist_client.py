@@ -1,3 +1,6 @@
+import html
+import re
+
 import httpx
 
 from src.domain.exceptions import AniListError
@@ -10,11 +13,14 @@ _ANILIST_GENRES = {
     "romance", "sci-fi", "slice of life", "sports", "supernatural", "thriller",
 }
 
+# Only include tags with rank >= this threshold to avoid low-confidence noise.
+_TAG_RANK_MIN = 60
+
 _MEDIA_FIELDS = """
       id
       title { english romaji }
       genres
-      tags { name }
+      tags { name rank }
       description(asHtml: false)
       averageScore
       episodes
@@ -23,9 +29,9 @@ _MEDIA_FIELDS = """
 """
 
 _SEASONAL_QUERY = """
-query ($season: MediaSeason, $year: Int, $page: Int) {
+query ($season: MediaSeason, $year: Int, $isAdult: Boolean, $page: Int) {
   Page(page: $page, perPage: 50) {
-    media(season: $season, seasonYear: $year, type: ANIME, sort: POPULARITY_DESC) {
+    media(season: $season, seasonYear: $year, type: ANIME, sort: POPULARITY_DESC, isAdult: $isAdult) {
 """ + _MEDIA_FIELDS + """
     }
   }
@@ -33,9 +39,9 @@ query ($season: MediaSeason, $year: Int, $page: Int) {
 """
 
 _SEARCH_QUERY = """
-query ($genres: [String], $tags: [String], $page: Int, $perPage: Int) {
+query ($genres: [String], $tags: [String], $isAdult: Boolean, $page: Int, $perPage: Int) {
   Page(page: $page, perPage: $perPage) {
-    media(genre_in: $genres, tag_in: $tags, type: ANIME, sort: SCORE_DESC, isAdult: false) {
+    media(genre_in: $genres, tag_in: $tags, type: ANIME, sort: SCORE_DESC, isAdult: $isAdult) {
 """ + _MEDIA_FIELDS + """
     }
   }
@@ -51,6 +57,7 @@ class AniListClient:
         self,
         genres: list[str] | None = None,
         per_page: int = 50,
+        allow_explicit: bool = False,
     ) -> list[AnimeEntry]:
         genre_list: list[str] = []
         tag_list: list[str] = []
@@ -64,13 +71,20 @@ class AniListClient:
             variables["genres"] = genre_list
         if tag_list:
             variables["tags"] = tag_list
+        if not allow_explicit:
+            variables["isAdult"] = False
         return await self._execute(_SEARCH_QUERY, variables)
 
-    async def get_seasonal(self, season: str, year: int) -> list[AnimeEntry]:
-        return await self._execute(
-            _SEASONAL_QUERY,
-            {"season": season, "year": year, "page": 1},
-        )
+    async def get_seasonal(
+        self,
+        season: str,
+        year: int,
+        allow_explicit: bool = False,
+    ) -> list[AnimeEntry]:
+        variables: dict[str, object] = {"season": season, "year": year, "page": 1}
+        if not allow_explicit:
+            variables["isAdult"] = False
+        return await self._execute(_SEASONAL_QUERY, variables)
 
     async def _execute(
         self, query: str, variables: dict[str, object]
@@ -97,6 +111,13 @@ class AniListClient:
             return [_parse_entry(m) for m in media_list]
 
 
+def _clean_synopsis(text: str) -> str:
+    text = re.sub(r"<br\s*/?>", " ", text, flags=re.IGNORECASE)
+    text = re.sub(r"<[^>]+>", "", text)
+    text = html.unescape(text)
+    return " ".join(text.split())
+
+
 def _parse_entry(raw: dict[str, object]) -> AnimeEntry:
     title_obj = raw.get("title") or {}
     assert isinstance(title_obj, dict)
@@ -108,13 +129,17 @@ def _parse_entry(raw: dict[str, object]) -> AnimeEntry:
     cover_image = str(cover_obj["large"]) if cover_obj.get("large") else None
     raw_tags = raw.get("tags") or []
     assert isinstance(raw_tags, list)
-    tags = [str(t["name"]) for t in raw_tags if isinstance(t, dict) and t.get("name")]
+    tags = [
+        str(t["name"])
+        for t in raw_tags
+        if isinstance(t, dict) and t.get("name") and int(t.get("rank", 0)) >= _TAG_RANK_MIN
+    ]
     return AnimeEntry(
         id=int(str(raw["id"])),
         title=title,
         genres=[str(g) for g in (raw.get("genres") or [])],
         tags=tags,
-        synopsis=str(raw.get("description") or ""),
+        synopsis=_clean_synopsis(str(raw.get("description") or "")),
         score=float(str(score_raw)) / 10.0 if score_raw else None,
         episodes=int(str(episodes_raw)) if episodes_raw else None,
         status=str(raw.get("status") or ""),

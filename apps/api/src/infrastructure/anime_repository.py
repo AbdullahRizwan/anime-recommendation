@@ -1,8 +1,11 @@
+from datetime import datetime, timedelta
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.domain.models import AnimeEntry
-from src.infrastructure.orm_models import SeasonalAnimeORM
+from src.infrastructure.orm_models import SearchCacheORM, SeasonalAnimeORM
+
+_SEARCH_TTL = timedelta(hours=24)
 
 
 class AnimeRepository:
@@ -21,7 +24,7 @@ class AnimeRepository:
         rows = result.scalars().all()
         if not rows:
             return None
-        return [_to_domain(row) for row in rows]
+        return [_seasonal_to_domain(row) for row in rows]
 
     async def store_seasonal(
         self, season: str, year: int, anime: list[AnimeEntry]
@@ -42,8 +45,30 @@ class AnimeRepository:
             await self._session.merge(row)
         await self._session.commit()
 
+    async def get_search_cache(self, cache_key: str) -> list[AnimeEntry] | None:
+        result = await self._session.execute(
+            select(SearchCacheORM).where(SearchCacheORM.cache_key == cache_key)
+        )
+        row = result.scalar_one_or_none()
+        if row is None:
+            return None
+        if datetime.utcnow() - row.fetched_at > _SEARCH_TTL:
+            return None
+        return [AnimeEntry.model_validate(item) for item in row.results]
 
-def _to_domain(row: SeasonalAnimeORM) -> AnimeEntry:
+    async def store_search_cache(
+        self, cache_key: str, anime: list[AnimeEntry]
+    ) -> None:
+        row = SearchCacheORM(
+            cache_key=cache_key,
+            results=[a.model_dump() for a in anime],
+            fetched_at=datetime.utcnow(),
+        )
+        await self._session.merge(row)
+        await self._session.commit()
+
+
+def _seasonal_to_domain(row: SeasonalAnimeORM) -> AnimeEntry:
     return AnimeEntry(
         id=row.anilist_id,
         title=row.title,

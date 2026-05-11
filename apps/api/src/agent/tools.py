@@ -104,7 +104,10 @@ class Deps:
 
 async def get_seasonal_anime(ctx: RunContext[Deps], season: str, year: int) -> str:
     """Fetch seasonal anime catalog from AniList. Season must be WINTER, SPRING, SUMMER, or FALL."""
-    anime_list = await ctx.deps.catalog.get_seasonal(season.upper(), year)
+    allow_explicit = ctx.deps.request.preferences.allow_explicit
+    anime_list = await ctx.deps.catalog.get_seasonal(
+        season.upper(), year, allow_explicit=allow_explicit
+    )
     ctx.deps.store = {a.id: a for a in anime_list}
     return json.dumps([_to_dict(a) for a in anime_list])
 
@@ -116,7 +119,10 @@ async def search_all_anime(
 ) -> str:
     """Search AniList's full catalog (all years) filtered by genre, sorted by score.
     Use this when the user wants classic or highly-rated anime beyond the current season."""
-    anime_list = await ctx.deps.catalog.search_all(genres=genres, per_page=per_page)
+    allow_explicit = ctx.deps.request.preferences.allow_explicit
+    anime_list = await ctx.deps.catalog.search_all(
+        genres=genres, per_page=per_page, allow_explicit=allow_explicit
+    )
     for a in anime_list:
         ctx.deps.store[a.id] = a
     return json.dumps([_to_dict(a) for a in anime_list])
