@@ -1,6 +1,6 @@
 from datetime import date
 
-from src.domain.exceptions import AgentError
+from src.domain.exceptions import AgentError, AniListError, DatabaseError
 from src.domain.models import RecommendationRequest, RecommendationResponse
 from src.infrastructure.catalog_service import CatalogService
 from src.agent.agent import agent
@@ -33,6 +33,8 @@ async def run_recommendation_agent(
         prompt = f"Recommend the top {request.top_n} anime based on the user's preferences."
     try:
         result = await agent.run(prompt, deps=deps)
+    except (AniListError, DatabaseError):
+        raise
     except Exception as e:
         raise AgentError(str(e)) from e
     return result.output

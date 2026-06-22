@@ -1,11 +1,14 @@
+import logging
 import logfire
 import openai
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from src.config import settings
-from src.domain.exceptions import AgentError, AniListError
+from src.domain.exceptions import AgentError, AniListError, DatabaseError
 from src.routers import recommend
+
+logger = logging.getLogger(__name__)
 
 logfire.configure(
     token=settings.logfire_token or None,
@@ -24,8 +27,18 @@ async def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.exception_handler(DatabaseError)
+async def database_error_handler(request: Request, exc: DatabaseError) -> JSONResponse:
+    logger.exception("Database error on %s %s", request.method, request.url.path)
+    return JSONResponse(
+        status_code=503,
+        content={"error": "database_unavailable", "detail": str(exc)},
+    )
+
+
 @app.exception_handler(AniListError)
 async def anilist_error_handler(request: Request, exc: AniListError) -> JSONResponse:
+    logger.exception("AniList error on %s %s", request.method, request.url.path)
     return JSONResponse(
         status_code=502,
         content={"error": "anime_data_unavailable", "detail": str(exc)},
@@ -34,6 +47,7 @@ async def anilist_error_handler(request: Request, exc: AniListError) -> JSONResp
 
 @app.exception_handler(AgentError)
 async def agent_error_handler(request: Request, exc: AgentError) -> JSONResponse:
+    logger.exception("Agent error on %s %s", request.method, request.url.path)
     return JSONResponse(
         status_code=502,
         content={"error": "agent_failed", "detail": str(exc)},
@@ -44,6 +58,7 @@ async def agent_error_handler(request: Request, exc: AgentError) -> JSONResponse
 async def rate_limit_handler(
     request: Request, exc: openai.RateLimitError
 ) -> JSONResponse:
+    logger.warning("OpenAI rate limit hit on %s %s", request.method, request.url.path)
     return JSONResponse(
         status_code=429,
         content={"error": "rate_limited", "detail": "Rate limit hit, try again later."},
@@ -52,6 +67,7 @@ async def rate_limit_handler(
 
 @app.exception_handler(openai.APIError)
 async def openai_error_handler(request: Request, exc: openai.APIError) -> JSONResponse:
+    logger.exception("OpenAI API error on %s %s", request.method, request.url.path)
     return JSONResponse(
         status_code=502,
         content={"error": "llm_unavailable", "detail": str(exc)},
@@ -60,6 +76,7 @@ async def openai_error_handler(request: Request, exc: openai.APIError) -> JSONRe
 
 @app.exception_handler(Exception)
 async def generic_error_handler(request: Request, exc: Exception) -> JSONResponse:
+    logger.exception("Unhandled error on %s %s", request.method, request.url.path)
     return JSONResponse(
         status_code=500,
         content={"error": "internal_error", "detail": "An unexpected error occurred."},
