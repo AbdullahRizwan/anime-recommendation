@@ -1,13 +1,11 @@
 import json
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
-import pytest
-
-from src.agent.tools import filter_anime, rank_anime
-from src.domain.models import AnimeEntry
+from src.agent.tools import Deps, _filter_entries, search_catalog
+from src.domain.models import AnimeEntry, RecommendationRequest, UserPreferences
 
 
-def _entry(**kwargs) -> AnimeEntry:
+def _entry(**kwargs: object) -> AnimeEntry:
     defaults: dict = {
         "id": 1,
         "title": "Test Anime",
@@ -22,104 +20,174 @@ def _entry(**kwargs) -> AnimeEntry:
     return AnimeEntry(**{**defaults, **kwargs})
 
 
-def _ctx(store: dict) -> MagicMock:
+def _deps(catalog: MagicMock, allow_explicit: bool = False) -> Deps:
+    request = RecommendationRequest(
+        preferences=UserPreferences(allow_explicit=allow_explicit)
+    )
+    return Deps(catalog=catalog, request=request, season="SPRING", year=2026)
+
+
+def _ctx(deps: Deps) -> MagicMock:
     ctx = MagicMock()
-    ctx.deps.store = store
+    ctx.deps = deps
     return ctx
 
 
-# ── filter_anime ──────────────────────────────────────────────────────────────
+# ── _filter_entries (pure) ────────────────────────────────────────────────────
 
 class TestFilterByGenreTag:
-    async def test_passes_on_genre_match(self) -> None:
+    def test_passes_on_genre_match(self) -> None:
         entry = _entry(id=1, genres=["Horror", "Drama"])
-        result = json.loads(await filter_anime(_ctx({1: entry}), [1], include_genres=["Horror"]))
-        assert len(result) == 1
+        assert len(_filter_entries([entry], include_genres=["Horror"])) == 1
 
-    async def test_passes_on_tag_match(self) -> None:
+    def test_passes_on_tag_match(self) -> None:
         """Harem is an AniList tag, not a genre — should still pass."""
         entry = _entry(id=1, genres=["Comedy"], tags=["Harem"])
-        result = json.loads(await filter_anime(_ctx({1: entry}), [1], include_genres=["Harem"]))
-        assert len(result) == 1
+        assert len(_filter_entries([entry], include_genres=["Harem"])) == 1
 
-    async def test_passes_on_synopsis_keyword_fallback(self) -> None:
+    def test_passes_on_synopsis_keyword_fallback(self) -> None:
         """No genre/tag match, but synopsis contains a mapped keyword."""
-        entry = _entry(id=1, genres=["Drama"], synopsis="A haunted house full of dread.")
-        result = json.loads(await filter_anime(_ctx({1: entry}), [1], include_genres=["Horror"]))
-        assert len(result) == 1
+        entry = _entry(id=1, genres=["Drama"], synopsis="A haunted house of dread.")
+        assert len(_filter_entries([entry], include_genres=["Horror"])) == 1
 
-    async def test_filters_out_unrelated(self) -> None:
+    def test_filters_out_unrelated(self) -> None:
         entry = _entry(id=1, genres=["Action"], tags=[], synopsis="Two warriors clash.")
-        result = json.loads(await filter_anime(_ctx({1: entry}), [1], include_genres=["Harem"]))
-        assert len(result) == 0
-
-    async def test_skips_missing_ids(self) -> None:
-        result = json.loads(await filter_anime(_ctx({}), [99], include_genres=["Action"]))
-        assert result == []
+        assert len(_filter_entries([entry], include_genres=["Harem"])) == 0
 
 
 class TestFilterExcludeGenres:
-    async def test_excludes_by_genre(self) -> None:
+    def test_excludes_by_genre(self) -> None:
         entry = _entry(id=1, genres=["Ecchi", "Action"])
-        result = json.loads(await filter_anime(_ctx({1: entry}), [1], exclude_genres=["Ecchi"]))
-        assert len(result) == 0
+        assert len(_filter_entries([entry], exclude_genres=["Ecchi"])) == 0
 
-    async def test_excludes_by_tag(self) -> None:
+    def test_excludes_by_tag(self) -> None:
         entry = _entry(id=1, genres=["Action"], tags=["Gore"])
-        result = json.loads(await filter_anime(_ctx({1: entry}), [1], exclude_genres=["Gore"]))
-        assert len(result) == 0
+        assert len(_filter_entries([entry], exclude_genres=["Gore"])) == 0
 
-    async def test_keeps_when_no_excluded_match(self) -> None:
+    def test_keeps_when_no_excluded_match(self) -> None:
         entry = _entry(id=1, genres=["Action"])
-        result = json.loads(await filter_anime(_ctx({1: entry}), [1], exclude_genres=["Horror"]))
-        assert len(result) == 1
+        assert len(_filter_entries([entry], exclude_genres=["Horror"])) == 1
 
 
 class TestFilterEpisodes:
-    async def test_filters_over_limit(self) -> None:
+    def test_filters_over_limit(self) -> None:
         entry = _entry(id=1, genres=["Action"], episodes=24)
-        result = json.loads(await filter_anime(_ctx({1: entry}), [1], max_episodes=12))
-        assert len(result) == 0
+        assert len(_filter_entries([entry], max_episodes=12)) == 0
 
-    async def test_passes_within_limit(self) -> None:
+    def test_passes_within_limit(self) -> None:
         entry = _entry(id=1, genres=["Action"], episodes=12)
-        result = json.loads(await filter_anime(_ctx({1: entry}), [1], max_episodes=12))
-        assert len(result) == 1
+        assert len(_filter_entries([entry], max_episodes=12)) == 1
 
-    async def test_passes_null_episodes(self) -> None:
+    def test_passes_null_episodes(self) -> None:
         entry = _entry(id=1, genres=["Action"], episodes=None)
-        result = json.loads(await filter_anime(_ctx({1: entry}), [1], max_episodes=12))
-        assert len(result) == 1
+        assert len(_filter_entries([entry], max_episodes=12)) == 1
 
 
-class TestFilterExplicitKeywords:
-    async def test_explicit_keywords_and_with_genre(self) -> None:
+class TestFilterScore:
+    def test_filters_below_min_score(self) -> None:
+        entry = _entry(id=1, genres=["Action"], score=6.0)
+        assert len(_filter_entries([entry], min_score=7.0)) == 0
+
+    def test_passes_at_or_above_min_score(self) -> None:
+        entry = _entry(id=1, genres=["Action"], score=8.0)
+        assert len(_filter_entries([entry], min_score=7.0)) == 1
+
+    def test_passes_null_score(self) -> None:
+        entry = _entry(id=1, genres=["Action"], score=None)
+        assert len(_filter_entries([entry], min_score=7.0)) == 1
+
+
+class TestFilterKeywords:
+    def test_keywords_and_with_genre(self) -> None:
         entry = _entry(id=1, genres=["Horror"], synopsis="A horror romance.")
-        result = json.loads(
-            await filter_anime(_ctx({1: entry}), [1], include_genres=["Horror"], synopsis_keywords=["romance"])
+        result = _filter_entries(
+            [entry], include_genres=["Horror"], keywords=["romance"]
         )
         assert len(result) == 1
 
-    async def test_explicit_keywords_fails_when_absent(self) -> None:
+    def test_keywords_fails_when_absent(self) -> None:
         entry = _entry(id=1, genres=["Horror"], synopsis="Pure terror.")
-        result = json.loads(
-            await filter_anime(_ctx({1: entry}), [1], include_genres=["Horror"], synopsis_keywords=["romance"])
+        result = _filter_entries(
+            [entry], include_genres=["Horror"], keywords=["romance"]
         )
         assert len(result) == 0
 
 
-# ── rank_anime ────────────────────────────────────────────────────────────────
+# ── search_catalog (standalone tool) ──────────────────────────────────────────
 
-class TestRankAnime:
-    async def test_returns_top_n(self) -> None:
-        store = {i: _entry(id=i) for i in range(1, 6)}
-        result = json.loads(await rank_anime(_ctx(store), list(store.keys()), top_n=3))
-        assert len(result) == 3
+class TestSearchCatalog:
+    async def test_all_time_search_fetches_filters_and_sorts(self) -> None:
+        catalog = MagicMock()
+        catalog.search_all = AsyncMock(
+            return_value=[
+                _entry(id=1, genres=["Action"], score=6.0),
+                _entry(id=2, genres=["Action"], score=9.0),
+                _entry(id=3, genres=["Romance"], score=8.0),
+            ]
+        )
+        deps = _deps(catalog)
+        result = json.loads(
+            await search_catalog(_ctx(deps), genres=["Action"], limit=10)
+        )
+        # Romance dropped by include filter; remaining sorted by score desc.
+        assert [r["id"] for r in result] == [2, 1]
+        catalog.search_all.assert_awaited_once()
 
-    async def test_skips_missing_ids(self) -> None:
-        store = {1: _entry(id=1)}
-        result = json.loads(await rank_anime(_ctx(store), [1, 99, 100], top_n=5))
+    async def test_seasonal_uses_get_seasonal(self) -> None:
+        catalog = MagicMock()
+        catalog.get_seasonal = AsyncMock(
+            return_value=[_entry(id=1, genres=["Action"], score=7.0)]
+        )
+        catalog.search_all = AsyncMock(return_value=[])
+        deps = _deps(catalog)
+        result = json.loads(await search_catalog(_ctx(deps), seasonal=True))
         assert len(result) == 1
+        catalog.get_seasonal.assert_awaited_once_with(
+            "SPRING", 2026, allow_explicit=False
+        )
+        catalog.search_all.assert_not_awaited()
+
+    async def test_limit_caps_results(self) -> None:
+        catalog = MagicMock()
+        catalog.search_all = AsyncMock(
+            return_value=[
+                _entry(id=i, genres=["Action"], score=float(i)) for i in range(1, 11)
+            ]
+        )
+        deps = _deps(catalog)
+        result = json.loads(
+            await search_catalog(_ctx(deps), genres=["Action"], limit=3)
+        )
+        assert len(result) == 3
+        # Highest scores first.
+        assert [r["id"] for r in result] == [10, 9, 8]
+
+    async def test_populates_store_for_enrichment(self) -> None:
+        catalog = MagicMock()
+        catalog.search_all = AsyncMock(
+            return_value=[_entry(id=42, genres=["Action"], title="Real Title")]
+        )
+        deps = _deps(catalog)
+        await search_catalog(_ctx(deps), genres=["Action"])
+        assert 42 in deps.store
+        assert deps.store[42].title == "Real Title"
+
+    async def test_emits_progress_events(self) -> None:
+        import asyncio
+
+        catalog = MagicMock()
+        catalog.search_all = AsyncMock(
+            return_value=[_entry(id=1, genres=["Action"])]
+        )
+        deps = _deps(catalog)
+        deps.events = asyncio.Queue()
+        await search_catalog(_ctx(deps), genres=["Action"])
+        events = []
+        while not deps.events.empty():
+            events.append(deps.events.get_nowait())
+        statuses = [e["status"] for e in events]
+        assert statuses == ["started", "finished"]
+        assert events[1]["count"] == 1
 
 
 # ── AniList genre/tag routing ─────────────────────────────────────────────────

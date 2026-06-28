@@ -15,6 +15,7 @@ class SeasonalAnimeORM(Base):
     year: Mapped[int] = mapped_column(Integer, primary_key=True)
     title: Mapped[str] = mapped_column(String)
     genres: Mapped[list[str]] = mapped_column(ARRAY(String))
+    tags: Mapped[list[str]] = mapped_column(ARRAY(String), server_default="{}")
     synopsis: Mapped[str] = mapped_column(String)
     score: Mapped[float | None] = mapped_column(Float, nullable=True)
     episodes: Mapped[int | None] = mapped_column(Integer, nullable=True)

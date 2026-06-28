@@ -18,6 +18,7 @@ logfire.configure(
 app = FastAPI(title="Anime Triage API", version="0.1.0")
 
 logfire.instrument_fastapi(app)
+logfire.instrument_pydantic_ai()
 
 app.include_router(recommend.router, prefix="/api/v1")
 

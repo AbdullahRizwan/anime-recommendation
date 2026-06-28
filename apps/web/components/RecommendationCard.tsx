@@ -1,5 +1,5 @@
-import Image from "next/image";
 import type { RankedAnime } from "@shared-schemas";
+import Image from "next/image";
 
 export function RecommendationCard({ rec }: { rec: RankedAnime }) {
   return (

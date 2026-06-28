@@ -1,7 +1,7 @@
 import type { RecommendationRequest, RecommendationResponse } from "@shared-schemas";
 import { RecommendationResponseSchema } from "@shared-schemas";
 
-const API_URL = process.env["API_URL"] ?? "http://localhost:8000";
+const API_URL = process.env.API_URL ?? "http://localhost:8000";
 
 export async function getRecommendations(
   request: RecommendationRequest,

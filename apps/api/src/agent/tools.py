@@ -1,3 +1,4 @@
+import asyncio
 import json
 from dataclasses import dataclass, field
 
@@ -6,7 +7,7 @@ from pydantic_ai import RunContext
 from src.domain.models import AnimeEntry, RecommendationRequest
 from src.infrastructure.catalog_service import CatalogService
 
-_SYNOPSIS_LIMIT = 300
+_SYNOPSIS_LIMIT = 400
 
 _GENRE_KEYWORDS: dict[str, list[str]] = {
     # ── Genres ────────────────────────────────────────────────────────────────
@@ -99,65 +100,53 @@ class Deps:
     request: RecommendationRequest
     season: str
     year: int
+    # store is an authoritative record of every entry the agent has seen, keyed by
+    # id. It is NOT used to chain tool calls together — each tool returns its own
+    # full results — it exists only so the final output can be enriched with exact
+    # titles, scores, and cover images (which the model must not transcribe by hand).
     store: dict[int, AnimeEntry] = field(default_factory=dict)
+    # Optional progress channel. When set, tools push human-readable events that the
+    # SSE endpoint streams to the UI so progress reflects real agent activity.
+    events: "asyncio.Queue[dict[str, object]] | None" = None
+
+    async def emit(self, event: dict[str, object]) -> None:
+        if self.events is not None:
+            await self.events.put(event)
 
 
-async def get_seasonal_anime(ctx: RunContext[Deps], season: str, year: int) -> str:
-    """Fetch seasonal anime catalog from AniList. Season must be WINTER, SPRING, SUMMER, or FALL."""
-    allow_explicit = ctx.deps.request.preferences.allow_explicit
-    anime_list = await ctx.deps.catalog.get_seasonal(
-        season.upper(), year, allow_explicit=allow_explicit
-    )
-    ctx.deps.store = {a.id: a for a in anime_list}
-    return json.dumps([_to_dict(a) for a in anime_list])
-
-
-async def search_all_anime(
-    ctx: RunContext[Deps],
-    genres: list[str] | None = None,
-    per_page: int = 50,
-) -> str:
-    """Search AniList's full catalog (all years) filtered by genre, sorted by score.
-    Use this when the user wants classic or highly-rated anime beyond the current season."""
-    allow_explicit = ctx.deps.request.preferences.allow_explicit
-    anime_list = await ctx.deps.catalog.search_all(
-        genres=genres, per_page=per_page, allow_explicit=allow_explicit
-    )
-    for a in anime_list:
-        ctx.deps.store[a.id] = a
-    return json.dumps([_to_dict(a) for a in anime_list])
-
-
-async def filter_anime(
-    ctx: RunContext[Deps],
-    anime_ids: list[int],
+def _filter_entries(
+    entries: list[AnimeEntry],
     include_genres: list[str] | None = None,
     exclude_genres: list[str] | None = None,
-    synopsis_keywords: list[str] | None = None,
+    keywords: list[str] | None = None,
     max_episodes: int | None = None,
-) -> str:
-    """Filter an anime list by genres, synopsis keywords, or episode count.
-    synopsis_keywords checks if any keyword appears in the description (case-insensitive)."""
+    min_score: float | None = None,
+) -> list[AnimeEntry]:
+    """Pure filter over a list of entries. Standalone and side-effect free.
+
+    - include_genres: keep entries matching ANY genre/tag, OR whose synopsis contains
+      a thematic keyword derived from that genre (so 'horror' also catches a synopsis
+      about a haunted house even when 'Horror' isn't a listed genre).
+    - exclude_genres: drop entries matching ANY genre/tag.
+    - keywords: require at least one keyword to appear in the synopsis.
+    - max_episodes / min_score: numeric gates (entries with null values pass).
+    """
     include = {g.lower() for g in (include_genres or [])}
     exclude_set = {g.lower() for g in (exclude_genres or [])}
-    explicit_kw = [k.lower() for k in (synopsis_keywords or [])]
+    explicit_kw = [k.lower() for k in (keywords or [])]
 
-    # Build derived keywords only for genres with explicit mappings.
-    # Unmapped genres use tag-only matching so a genre name appearing
-    # in an unrelated synopsis doesn't produce false positives.
     derived_kw: list[str] = []
     for g in include:
         derived_kw.extend(_GENRE_KEYWORDS.get(g, []))
 
-    results = []
-    for aid in anime_ids:
-        a = ctx.deps.store.get(aid)
-        if not a:
-            continue
+    results: list[AnimeEntry] = []
+    for a in entries:
         categories = {g.lower() for g in a.genres} | {t.lower() for t in a.tags}
         if exclude_set and exclude_set & categories:
             continue
         if max_episodes and a.episodes and a.episodes > max_episodes:
+            continue
+        if min_score is not None and a.score is not None and a.score < min_score:
             continue
         synopsis_lower = a.synopsis.lower()
         if include:
@@ -168,17 +157,88 @@ async def filter_anime(
         if explicit_kw and not any(k in synopsis_lower for k in explicit_kw):
             continue
         results.append(a)
-    return json.dumps([_to_dict(a) for a in results])
+    return results
 
 
-async def rank_anime(
+async def search_catalog(
     ctx: RunContext[Deps],
-    anime_ids: list[int],
-    top_n: int,
+    genres: list[str] | None = None,
+    exclude_genres: list[str] | None = None,
+    keywords: list[str] | None = None,
+    seasonal: bool = False,
+    max_episodes: int | None = None,
+    min_score: float | None = None,
+    limit: int = 25,
 ) -> str:
-    """Get details for the model's top picks to rank."""
-    picks = [ctx.deps.store[aid] for aid in anime_ids if aid in ctx.deps.store][:top_n]
-    return json.dumps([_to_dict(a) for a in picks])
+    """Search the anime catalog and return COMPLETE details for every match.
+
+    This is a single, standalone search: it fetches the catalog, applies all of the
+    filters below, sorts by score, and returns full details (title, genres, tags,
+    synopsis, score, episodes, status, cover image) — everything you need to reason
+    about and rank results. You never need a separate fetch, filter, or rank step.
+
+    Call it more than once with different criteria to assemble a varied candidate set
+    (e.g. one search per liked genre, or a seasonal pass plus an all-time pass).
+
+    Args:
+        genres: include titles matching ANY of these genres/themes. Also expands to
+            synopsis keywords, so thematically relevant shows are caught even when the
+            genre isn't formally tagged.
+        exclude_genres: drop titles matching ANY of these genres/themes.
+        keywords: require at least one of these words to appear in the synopsis.
+        seasonal: when true, restrict to the current season; otherwise search all years.
+        max_episodes: drop titles with more than this many episodes.
+        min_score: drop titles scored below this (0-10 scale).
+        limit: maximum number of results to return (highest-scored first).
+    """
+    allow_explicit = ctx.deps.request.preferences.allow_explicit
+    scope = f"{ctx.deps.season} {ctx.deps.year}" if seasonal else "all-time"
+    label_genres = ", ".join(genres) if genres else "everything"
+    await ctx.deps.emit(
+        {
+            "type": "tool",
+            "tool": "search_catalog",
+            "status": "started",
+            "label": f"Searching {scope} catalog for {label_genres}",
+        }
+    )
+
+    if seasonal:
+        entries = await ctx.deps.catalog.get_seasonal(
+            ctx.deps.season, ctx.deps.year, allow_explicit=allow_explicit
+        )
+    else:
+        # Push genre filtering to AniList for all-time searches so results are
+        # relevant rather than the globally top-scored titles.
+        entries = await ctx.deps.catalog.search_all(
+            genres=genres, per_page=max(limit, 50), allow_explicit=allow_explicit
+        )
+
+    filtered = _filter_entries(
+        entries,
+        include_genres=genres,
+        exclude_genres=exclude_genres,
+        keywords=keywords,
+        max_episodes=max_episodes,
+        min_score=min_score,
+    )
+    filtered.sort(key=lambda a: a.score or 0.0, reverse=True)
+    results = filtered[:limit]
+
+    # Record every result so the final output can be enriched authoritatively.
+    for a in results:
+        ctx.deps.store[a.id] = a
+
+    await ctx.deps.emit(
+        {
+            "type": "tool",
+            "tool": "search_catalog",
+            "status": "finished",
+            "label": f"Found {len(results)} matches in {scope} catalog",
+            "count": len(results),
+        }
+    )
+    return json.dumps([_to_dict(a) for a in results])
 
 
 def _to_dict(a: AnimeEntry) -> dict[str, object]:

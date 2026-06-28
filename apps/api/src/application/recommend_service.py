@@ -1,7 +1,12 @@
+from collections.abc import AsyncIterator
+
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.agent.runner import run_recommendation_agent
+from src.agent.runner import (
+    run_recommendation_agent,
+    run_recommendation_agent_stream,
+)
 from src.config import settings
 from src.domain.models import RecommendationRequest, RecommendationResponse
 from src.infrastructure.anilist_client import AniListClient
@@ -16,6 +21,11 @@ class RecommendService:
 
     async def recommend(self, request: RecommendationRequest) -> RecommendationResponse:
         return await run_recommendation_agent(self._catalog, request)
+
+    def recommend_stream(
+        self, request: RecommendationRequest
+    ) -> AsyncIterator[dict[str, object]]:
+        return run_recommendation_agent_stream(self._catalog, request)
 
 
 def get_recommend_service(
