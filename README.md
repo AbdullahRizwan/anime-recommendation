@@ -7,7 +7,7 @@ A seasonal anime recommendation system powered by a reasoning agent. Give it you
 | Layer | Tech |
 |---|---|
 | API | FastAPI, Python 3.13, uv |
-| Agent | Groq (`llama-3.3-70b-versatile`) via OpenAI-compatible SDK |
+| Agent | OpenAI (`gpt-4o-mini`) via pydantic-ai |
 | Anime data | AniList GraphQL API (free, no auth) |
 | Frontend | Next.js 15, App Router, Tailwind CSS, shadcn/ui |
 | Database | Postgres 17 + pgvector |
@@ -19,7 +19,7 @@ A seasonal anime recommendation system powered by a reasoning agent. Give it you
 - [uv](https://astral.sh/uv) — Python package manager
 - [Bun](https://bun.sh) — JavaScript runtime
 - [Docker Desktop](https://www.docker.com/products/docker-desktop) — for Postgres
-- A free [Groq API key](https://console.groq.com)
+- An [OpenAI API key](https://platform.openai.com/api-keys)
 
 ### Setup
 
@@ -30,7 +30,7 @@ cd anime-recommendation
 
 # 2. Configure environment
 cp .env.example .env
-# Edit .env and set GROQ_API_KEY=gsk_...
+# Edit .env and set OPENAI_API_KEY=sk-...
 
 # 3. Start Postgres
 docker compose up -d
